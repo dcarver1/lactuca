@@ -4,7 +4,7 @@
 # 20220810
 ### 
 
-pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster")
+pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2")
 
 source("src/dms_dd.R")
 
@@ -42,7 +42,8 @@ if(!file.exists(file)){
     terra::writeRaster(r2, file)
   
     d2 <- terra::extract(r2, sp1) 
-    df <- dplyr::left_join(as.data.frame(d1), d2, by = c("Id" = "ID")) 
+    df <- dplyr::left_join(as.data.frame(d1), d2, by = c("Id" = "ID"))
+    write_csv(df, "outputs/ecoGeoData.csv")
   }else{
     r2 <- terra::rast(file)
     # create point object 
@@ -56,12 +57,12 @@ if(!file.exists(file)){
 # generate jitters --------------------------------------------------------
 tbls <- df[,c(1,2,8:33)]
 tbls <- tbls[!is.nan(tbls$`Annual mean temperature`),]
+varList <- names$`Current title`
 
 for(i in seq_along(varList)){
   g <- tbls %>%
     ggplot2::ggplot(aes(x = species, y =varList[i])) +
-    ggplot2::geom_jitter(colour = "gray", width = 0.20) +
-    ggplot2::geom_boxplot()+
+    ggplot2::geom_jitter(colour = "gray", width = 0.20)+
     ggplot2::xlab("") +
     ggplot2::ylab("") +
     ggplot2::coord_flip() +
