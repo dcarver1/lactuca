@@ -4,9 +4,79 @@
 # 20220810
 ### 
 
-pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2")
+pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2",
+               "googlesheets4","googledrive", "tmap", "geodata")
+tmap_mode("view")
 
+
+# source functions --------------------------------------------------------
 source("src/dms_dd.R")
+
+
+
+
+# 2024 data generation ----------------------------------------------------
+
+## pull in data 
+gs4_auth()
+d1 <- googlesheets4::read_sheet(as_id("https://docs.google.com/spreadsheets/d/1c1VBw33SVNr7NdQMoL7wS4grjoX2VxOyCWHO_6QDs5w/edit#gid=1459564859"))
+
+## Spatial object 
+### drop the new addition 
+d2 <- d1[1:(nrow(d1)-1),]
+sp1 <- d2 |>
+  sf::st_as_sf(coords = c("longitude","latitude"), remove = FALSE)
+
+## copy to compare the selection against 
+sp2 <- sp1 |>
+  dplyr::select("Id","species","location","latitude","longitude","altitude") |>
+  terra::vect()
+
+
+# set the path 
+## does some automatic file detection testing with is nice 
+geodata_path("downloads")
+### grab elevation data outside of the loop as it is by country 
+geodata::elevation_30s(country = "AR")
+### try downloading tiles. 
+for(i in 1:nrow(sp1)){
+  val <- sp1[i,]  
+  # grab lat lon
+  lat <- test$latitude[1] |> unlist()
+  lon <- test$longitude[1] |> unlist()
+  # grab bioclim
+  geodata::worldclim_tile(var = "bio",res = "0.5", lon = lon, lat = lat )
+
+}
+
+### view the outputs 
+wc <- terra::rast("downloads/TRUE/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
+plot(wc[1])
+elev <- terra::rast("downloads/TRUE/ARG_elv_msk.tif") |>
+  terra::crop(terra::ext(wc))
+plot(elev)
+# slope 
+slope <- terra::terrain(elev, v= "slope", unit = "degrees" , neighbors = 8)
+# aspect
+aspect <- terra::terrain(elev, v= "aspect", unit = "degrees" , neighbors = 8)
+
+
+# Extract values to points  -----------------------------------------------
+exVal <- terra::extract(x = wc, y = sp2)
+names(exVal) <- names(sp1)[c(1,8:26)]
+
+sp2_data <- cbind(sp2,exVal)
+
+
+
+
+
+
+
+
+
+# 2022 data generation ----------------------------------------------------
+
 
 # clean input data --------------------------------------------------------
 
