@@ -6,24 +6,33 @@
 
 pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2",
                "googlesheets4","googledrive", "tmap", "geodata")
+# authorize account
+googlesheets4::gs4_auth()
+# set tmap mode to interactive map
 tmap_mode("view")
-
 
 # source functions --------------------------------------------------------
 source("src/dms_dd.R")
 
-
-
+# read in the 2.5 arc sec data for solar radiation and wind speed 
+bioNames <- read_csv("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
+bioVars <- readRDS("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
+names(bioVars) <- bioNames$`Current title`
+# sub set for the layer not present at higher resolution 
+bioVarsTrim <- bioVars[[20:22]]
+rm(bioVars)
 
 # 2024 data generation ----------------------------------------------------
 
 ## pull in data 
-gs4_auth()
 d1 <- googlesheets4::read_sheet(as_id("https://docs.google.com/spreadsheets/d/1c1VBw33SVNr7NdQMoL7wS4grjoX2VxOyCWHO_6QDs5w/edit#gid=1459564859"))
+## drop existing geometry column 
+d2 <- d1 |>
+  dplyr::select(-geometry)
+
 
 ## Spatial object 
 ### drop the new addition 
-d2 <- d1[1:(nrow(d1)-1),]
 sp1 <- d2 |>
   sf::st_as_sf(coords = c("longitude","latitude"), remove = FALSE)
 
@@ -38,12 +47,13 @@ sp2 <- sp1 |>
 geodata_path("downloads")
 ### grab elevation data outside of the loop as it is by country 
 geodata::elevation_30s(country = "AR")
+
 ### try downloading tiles. 
 for(i in 1:nrow(sp1)){
   val <- sp1[i,]  
   # grab lat lon
-  lat <- test$latitude[1] |> unlist()
-  lon <- test$longitude[1] |> unlist()
+  lat <- val$latitude[1] |> unlist()
+  lon <- val$longitude[1] |> unlist()
   # grab bioclim
   geodata::worldclim_tile(var = "bio",res = "0.5", lon = lon, lat = lat )
 
@@ -51,27 +61,84 @@ for(i in 1:nrow(sp1)){
 
 ### view the outputs 
 wc <- terra::rast("downloads/TRUE/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
-plot(wc[1])
+plot(wc[[1]])
 elev <- terra::rast("downloads/TRUE/ARG_elv_msk.tif") |>
   terra::crop(terra::ext(wc))
 plot(elev)
 # slope 
-slope <- terra::terrain(elev, v= "slope", unit = "degrees" , neighbors = 8)
+slope <- terra::terrain(elev, v= "slope", unit = "degrees" , neighbors = 8) 
 # aspect
 aspect <- terra::terrain(elev, v= "aspect", unit = "degrees" , neighbors = 8)
 
+# mask the plot area 
+wc2 <- wc |>
+  terra::crop(y = slope)
+
+allFeatures <- c(wc2,elev, slope, aspect)
 
 # Extract values to points  -----------------------------------------------
-exVal <- terra::extract(x = wc, y = sp2)
-names(exVal) <- names(sp1)[c(1,8:26)]
+exVal1 <- terra::extract(x = allFeatures, y = sp2)
+names(exVal1) <- c("ID",bioNames$`Current title`[1:19], "elevation", "slope", "aspect")
+exVal2 <- terra::extract(x = bioVarsTrim, y = sp2)
+# join and re order
+exVals <- dplyr::left_join(exVal1, exVal2, by = "ID")
 
-sp2_data <- cbind(sp2,exVal)
+# bring back into the species data 
+d3 <- d2 |>
+  dplyr::select("ID" = "Id","species"  ,"location","latitude" ,"longitude","altitude")
+d4 <- dplyr::left_join(d3, y = exVals, by = "ID")
+
+write_csv(d4,file = "outputs/ecogeographicDescription.csv")
+
+temp <- d4 |>
+  dplyr::select("species","Annual mean temperature","Mean diurnal temperature range","Isothermality" )
+temp
 
 
 
+### generate jitters --------------------------------------------------------
+tbls <- d4[,c(2,7:31)]
+tbls <- tbls[!is.nan(tbls$`Annual mean temperature`),]
+varList <- names(tbls)[-1]
+
+for(i in seq_along(varList)){
+  g <- tbls %>%
+    ggplot2::ggplot(aes(x = species, y =varList[i], color = species)) +
+    ggplot2::geom_jitter(width = 0.20)+
+    ggplot2::xlab("") +
+    ggplot2::ylab("") +
+    ggplot2::coord_flip() +
+    ggplot2::theme_bw()+
+    ggplot2::theme(axis.text.y = ggplot2::element_text(face =  "bold.italic"))
+  # save files 
+  ggsave(filename = paste0("outputs/jitters/", varList[i], "_2024.png"), plot = g, units = "in", width = 7, height = 3)
+  rm(g)
+  
+}
 
 
+# generate boxplots -------------------------------------------------------
+#remove features with only one sample 
+tbls$species <- as.factor(tbls$species)
 
+t2 <- gather(tbls,key = "Variable", value = "Value", -species )
+
+for(i in seq_along(varList)){
+  print(i)
+  t3 <- dplyr::filter(t2, Variable == varList[i])
+  
+  g <- ggplot(data = t3, aes(x = factor(species) , y = Value, color = species))+
+    ggplot2::geom_boxplot()+
+    ggplot2::coord_flip() +
+    ggplot2::xlab("") +
+    ggplot2::ylab(varList[i]) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(axis.text.y     = ggplot2::element_text(face = "italic"),
+                   legend.position = "none")
+  
+  ggsave(filename = paste0("outputs/boxplots/", varList[i], "_2024.png"), plot = g, units = "in", width = 7, height = 3)
+  rm(g)
+}
 
 
 
@@ -79,7 +146,6 @@ sp2_data <- cbind(sp2,exVal)
 
 
 # clean input data --------------------------------------------------------
-
 d1 <- read_csv("data/analysis/lactuca2022.csv")%>%
   dplyr::filter(!is.na(latitude))%>%
   dms_dd(colname = "latitude")%>%
@@ -139,7 +205,7 @@ for(i in seq_along(varList)){
     ggplot2::theme_bw()+
     ggplot2::theme(axis.text.y = ggplot2::element_text(face =  "bold.italic"))
   # save files 
-  ggsave(filename = paste0("outputs/jitters/", varList[i], ".png"), plot = g, units = "in", width = 7, height = 3)
+  ggsave(filename = paste0("outputs/jitters/", varList[i], "_2024.png"), plot = g, units = "in", width = 7, height = 3)
   rm(g)
 
 }
@@ -150,28 +216,7 @@ for(i in seq_along(varList)){
 # Boxplots across species data per variable
 
 
-#remove features with only one sample 
-tbls <- tbls[tbls$species != "Lvir x Lser?, Lvir", ]
-tbls$species <- as.factor(tbls$species)
 
-t2 <- gather(tbls,key = "Variable", value = "Value", -Id, -species )
-
-for(i in seq_along(varList)){
-  print(i)
-  t3 <- dplyr::filter(t2, Variable == varList[i])
-  
-  g <- ggplot(data = t3, aes(x = factor(species) , y = Value), colour =  factor(species))+
-    ggplot2::geom_boxplot()+
-    ggplot2::coord_flip() +
-    ggplot2::xlab("") +
-    ggplot2::ylab(varList[i]) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(axis.text.y     = ggplot2::element_text(face = "italic"),
-                   legend.position = "none")
-  
-  ggsave(filename = paste0("outputs/boxplots/", varList[i], ".png"), plot = g, units = "in", width = 7, height = 3)
-  rm(g)
-}
 
   
   
