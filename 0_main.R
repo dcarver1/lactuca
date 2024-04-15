@@ -5,7 +5,7 @@
 ### 
 
 pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2",
-               "googlesheets4","googledrive", "tmap", "geodata")
+               "googlesheets4","googledrive", "tmap", "geodata", rnaturalearth, leaflet)
 # authorize account
 googlesheets4::gs4_auth()
 # set tmap mode to interactive map
@@ -88,12 +88,52 @@ d3 <- d2 |>
   dplyr::select("ID" = "Id","species"  ,"location","latitude" ,"longitude","altitude")
 d4 <- dplyr::left_join(d3, y = exVals, by = "ID")
 
-write_csv(d4,file = "outputs/ecogeographicDescription.csv")
+# write_csv(d4,file = "outputs/ecogeographicDescription.csv")
 
-temp <- d4 |>
-  dplyr::select("species","Annual mean temperature","Mean diurnal temperature range","Isothermality" )
-temp
+# temp <- d4 |>
+  # dplyr::select("species","Annual mean temperature","Mean diurnal temperature range","Isothermality" )
+# temp
 
+
+# generata a map ----------------------------------------------------------
+countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america")
+
+sp1 <- sp1 |>
+  dplyr::mutate(color = case_when(
+    species == "Lvir" ~ "#4daf4a",
+    species == "Lser" ~ "#377eb8",
+    species == "Lser, Lvir" ~ "#e41a1c",
+      ),
+    popup = paste0("<strong>", as.character(species),"</strong>", # needs to be text
+                   "<br/><strong>Record ID :</strong> ", Id,
+                   "<br/><strong>altitude :</strong> ", altitude,
+                  "<br/><strong> Location Description: </strong>", location)
+      )
+
+leaflet()|>
+  addProviderTiles(provider = providers$OpenStreetMap,
+                   group = "OSM") |>
+  addProviderTiles(provider = providers$Esri.WorldImagery,
+                   group = "Imagery")|>
+  addLayersControl(
+    position = "topleft",
+    baseGroups = c("OSM", "Imagery")
+  )|>
+  addCircleMarkers(
+    data = sp1,
+    group = "records",
+    color = ~color,
+    popup = ~popup
+  ) |>
+  # single legend for the GBIF features
+  addLegend(
+    position = "topright",
+    colors = c("#4daf4a", "#377eb8","#e41a1c"),
+    labels = c("Lvir","Lser","Lser, Lvir"),
+    title = "Species",
+    opacity = 1,
+    group = "records"
+  )
 
 
 ### generate jitters --------------------------------------------------------
