@@ -3,12 +3,12 @@ options(scipen = 999, warn = -1)
 
 # Load libraries
 suppressMessages(library(pacman))
-suppressMessages(pacman::p_load(tidyverse, gtools, FactoMineR, factoextra, Rtsne, psych, viridis))
+suppressMessages(pacman::p_load(tidyverse, gtools, FactoMineR, factoextra, Rtsne, psych, viridis, corrplot))
 # install.packages('raster')
 # install.packages('rgdal')
 # install.packages("corrplot")
-library(raster)
-library(rgdal)
+# library(raster)
+# library(rgdal)
 library(corrplot)
 
 # # Load data
@@ -118,17 +118,25 @@ df <- tbls %>% dplyr::select(id, LON_DEC_new, LAT_DEC_new, bio_1:Altitude) %>% t
 rownames(df) <- df$id; df$id <- NULL
 #rownames(df_tz) <- df_tz$id; df_tz$id <- NULL
 
+
+### 2024 testing
+df <- d4
+
 # PCA using all variables
-pca1 <- df %>% dplyr::select(LON_DEC_new:Altitude) %>% FactoMineR::PCA(scale.unit = T, graph = F)
+pca1 <- df %>%
+  dplyr::select("Annual mean temperature":wind) %>% 
+  FactoMineR::PCA(scale.unit = T, graph = F)
+
 pca1$ind$coord %>%
   data.frame %>%
-  mutate(Species = tbls$species[intersect(rownames(df), tbls$id)]) %>%
+  mutate(Species = df$species)|>  # tbls$species[intersect(rownames(df), tbls$id)]) %>%
   ggplot(aes(x = Dim.1, y = Dim.2, colour = Species)) +
   geom_point() +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0)
 
-setwd(outD)
+outD <- "outputs/pca"
+
 # Eigen values
 fviz_screeplot(pca1, addlabels = TRUE, ylim = c(0, 50)) %>%
   ggsave(filename = paste0(outD, "/pca/eigen_vals.png"), plot = ., units = "in", width = 10, height = 8)
