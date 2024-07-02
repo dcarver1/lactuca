@@ -5,8 +5,8 @@
 ### 
 
 pacman::p_load("terra", "sf", "dplyr", "readr", "stringr","raster", "ggplot2",
-               "googlesheets4","googledrive", "tmap", "geodata", rnaturalearth, leaflet,
-               tidyr)
+               "googlesheets4","googledrive", "tmap", "geodata", "rnaturalearth", "leaflet",
+               "tidyr")
 
 
 # source functions --------------------------------------------------------
@@ -23,6 +23,7 @@ tmap_mode("view")
 bioNames <- read_csv("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
 bioVars <- readRDS("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
 names(bioVars) <- bioNames$`Current title`
+names(bioVars) <- bioNames$full_title
 # sub set for the layer not present at higher resolution 
 bioVarsTrim <- bioVars[[20:22]]
 rm(bioVars)
@@ -30,6 +31,7 @@ rm(bioVars)
 # 2024 data generation ----------------------------------------------------
 # original Data
 d1 <- read.csv("originalData/originalLactucaData.csv")
+d1$Lactuca.species.at.coll..site[1] <- "Lvir"
 # convert the decimal degree 
 d2 <- d1 |>
   dplyr::filter(!is.na(latitude))|>
@@ -94,25 +96,54 @@ allFeatures <- c(wc2,elev, slope, aspect)
 
 # Extract values to points  -----------------------------------------------
 exVal1 <- terra::extract(x = allFeatures, y = sp2)
-names(exVal1) <- c("ID",bioNames$`Current title`[1:19], "elevation", "slope", "aspect")
-exVal2 <- terra::extract(x = bioVarsTrim, y = sp2)
+names(exVal1) <- c("Id",bioNames$shortName[1:19], "elevation", "slope", "aspect")
+# exVal2 <- terra::extract(x = bioVarsTrim, y = sp2)
 # join and re order
-exVals <- dplyr::left_join(exVal1, exVal2, by = "ID")
+exVals <- dplyr::left_join(as.data.frame(sp1), exVal1, by = "Id")
 
-# bring back into the species data 
-d3 <- d2 |>
-  dplyr::select("ID" = "Id","species"  ,"location","latitude" ,"longitude","altitude")
-d4 <- dplyr::left_join(d3, y = exVals, by = "ID")
+# subset for only require data for box plots 
+exVals2 <- exVals |>
+  dplyr::select( 
+    "Id",
+    "species",
+    "location",
+    "latitude",
+    "longitude",
+    "Annual mean temperature (\u00B0C)" = "bio_01",                         
+    "Mean diurnal temperature range (\u00B0C)" = "bio_02", 
+    "Isothermality" = "bio_03",
+    "Temperature seasonality (standard deviation) (\u00B0C)" = "bio_04"   ,
+    "Maximum temperature of warmest month (\u00B0C)" = "bio_05",
+    "Minimum temperature of coldest month (\u00B0C)" = "bio_06",
+    "Temperature annual range (\u00B0C)" = "bio_07",          
+    "Mean temperature of wettest quarter (\u00B0C)" = "bio_08",
+    "Mean temperature of driest quarter (\u00B0C)"  = "bio_09",
+    "Mean temperature of warmest quarter (\u00B0C)" =  "bio_10",
+    "Mean temperature of coldest quarter (\u00B0C)" = "bio_11",
+    "Annual precipitation (mm)" = "bio_12",
+    "Precipitation of wettest month (mm)"= "bio_13",
+    "Precipitation of driest month (mm)" = "bio_14",
+    "Precipitation seasonality (coefficient of variation) (%)" = "bio_15",
+    "Precipitation of wettest quarter (mm)" = "bio_16",
+    "Precipitation of driest quarter (mm)"  ="bio_17",
+    "Precipitation of warmest quarter (mm)" = "bio_18",
+    "Precipitation of coldest quarter (mm)" = "bio_19",
+    "elevation",
+    "slope",
+    "aspect" )
 
-write_csv(d4,file = "outputs/ecogeographicDescription.csv")
+# the  degree C symbology causes some issues.... 
+write_csv(exVals,file = "outputs/ecogeographicDescription.csv")
+read_csv("outputs/ecogeographicDescription.csv")
 
-# temp <- d4 |>
-  # dplyr::select("species","Annual mean temperature","Mean diurnal temperature range","Isothermality" )
-# temp
 
 
 # generata a map ----------------------------------------------------------
-countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america")
+countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america") |> sf::st_as_sf()
+
+## export data for map 
+sf::st_write(obj = sp1, "outputs/dataForMap/pointObject.gpkg")
+sf::st_write(obj = countries, "outputs/dataForMap/countries.gpkg")
 
 sp1 <- sp1 |>
   dplyr::mutate(color = case_when(
@@ -176,29 +207,126 @@ for(i in seq_along(varList)){
 
 
 # generate boxplots -------------------------------------------------------
-#remove features with only one sample 
-tbls$species <- as.factor(tbls$species)
+#remove features with only one sample
+tbls <- exVals
 
-t2 <- gather(tbls,key = "Variable", value = "Value", -species )
 
-for(i in seq_along(varList)){
-  print(i)
-  t3 <- dplyr::filter(t2, Variable == varList[i])
+index <- 1
+shortNames <- names(exVals[8:29])
+fullNames <- names(exVals2)[6:27]
+data <- gather(tbls, key = "Variable", value = "Value", -species )
+
+createBoxPlot <- function(index, shortNames, fullNames, data){
+  # select variable of interest 
+  var <- shortNames[index]
+  fullName <- fullNames[index]
+  # filter the dataset
+  t3 <- data |> dplyr::filter(Variable == var)
+  # reassign data 
+  t3$Value <- unlist(t3$Value)
   
-  g <- ggplot(data = t3, aes(x = factor(species) , y = Value, color = species))+
-    ggplot2::geom_boxplot()+
-    ggplot2::coord_flip() +
+  # assign a variable for the title 
+  t3$tempvar <- fullName
+  # labels 
+  labels <-c("L. virosa", "L. serriola","L. serriola & L. virosa")
+  
+  # generate the plot 
+  p1 <- ggplot(data = t3, aes(x = species, y = Value, color = species)) +
+    geom_boxplot()+
+    ggplot2::coord_flip()+
     ggplot2::xlab("") +
-    ggplot2::ylab(varList[i]) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(axis.text.y     = ggplot2::element_text(face = "italic"),
-                   legend.position = "none")
+    scale_x_discrete(label = labels)+
+    ggplot2::ylab("") +
+    scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))+
+    theme_gray() + 
+    theme(legend.position="none",
+          aspect.ratio=1/3)+
+    facet_grid(. ~ tempvar) +
+    theme(strip.background = element_rect(fill="#d1d9d8"),
+          strip.text = element_text(size=15, colour="black"))
   
+  # export the image
+  ggsave(filename = paste0("outputs/boxplots/", var, "_2024_refined.png"),
+         plot = p1, 
+         units = "in", width = 6, height = 2)
+  
+}
+
+lapply(X = 1:22, FUN = createBoxPlot,
+       shortNames = shortNames, 
+       fullNames = fullNames,
+       data =   data)
+
+# # change species name 
+# tbls <- tbls |>
+#   dplyr::mutate(species = case_when(
+#     species == "Lvir" ~ "L. virosa",
+#     species == "Lser" ~ "L. serriola",
+#     species == "Lser, Lvir" ~ "L. serriola & L. virosa",
+# 
+#   ))
+# # create an ordered factor
+# tbls$species <- factor(tbls$species,
+#                           levels = c("L. serriola & L. virosa", "L. serriola", "L. virosa"),
+#                           ordered = TRUE)
+
+# convert to a long table 
+t2 <- gather(tbls,key = "Variable", value = "Value", -species )
+varList <- names(exVals[8:29])
+fullNamList <- names(exVals2)[6:27]
+                  
+
+# select variable of interest 
+var <- varList[1]
+fullName <- fullNamList[1]
+# filter the dataset
+t3 <- t2 |> dplyr::filter(Variable == var)
+# unlist the data values 
+t3$Value <- unlist(t3$Value)
+# order the species column 
+t3$species2 <- factor(t3$species, levels = c("L. serriola & L. virosa", "L. serriola","L. virosa"             ))
+# generate the plot 
+# object labels 
+labels <-c("L. virosa", "L. serriola","L. serriola & L. virosa")
+# color scale 
+c
+
+
+ggplot(data = t3, aes(x = factor(species, 
+                                 levels = c("Lvir","Lser","Lser, Lvir")), y = Value, color = species)) +
+  geom_boxplot()+
+  ggplot2::coord_flip()+
+  ggplot2::xlab("") +
+  ggplot2::ylab(fullName) +
+  theme_gray()
+
+t3$tempvar <- fullName
+
+
+ggplot(data = t3, aes(x = species, y = Value, color = species)) +
+  geom_boxplot()+
+  ggplot2::coord_flip()+
+  ggplot2::xlab("") +
+  scale_x_discrete(label = labels)+
+  ggplot2::ylab("") +
+  scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))+
+  theme_gray() + 
+  theme(legend.position="none",
+        aspect.ratio=1/3)+
+  facet_grid(. ~ tempvar) +
+  theme(strip.background = element_rect(fill="#d1d9d8"),
+        strip.text = element_text(size=15, colour="black"))
+
+
+
   ggsave(filename = paste0("outputs/boxplots/", varList[i], "_2024.png"), plot = g, units = "in", width = 7, height = 3)
   rm(g)
 }
 
-#pca process 
+
+# pca process  ------------------------------------------------------------
+
+
 ### 2024 testing
 df <- d4[2:nrow(d4),]
 
@@ -305,9 +433,10 @@ g <- fviz_cluster(clust_pca, geom = "point", main = "Factor map") +
   theme_minimal()
 ggsave(filename = paste0(outD, "/clustering.png"), plot = g, units = "in", width = 10, height = 8)
 
-cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust))
-cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)/rowSums(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)))
+# cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust))
+# cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)/rowSums(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)))
 
+cross_tab <- as.data.frame(df$species, clust_pca$data.clust$clust)
 colnames(cross_tab) <- c("Species", "Cluster", "Freq")
 
 g <- cross_tab %>% ggplot(aes(x = factor(Cluster), y = Species, fill = Freq)) +

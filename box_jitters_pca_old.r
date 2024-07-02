@@ -139,20 +139,20 @@ outD <- "outputs/pca"
 
 # Eigen values
 fviz_screeplot(pca1, addlabels = TRUE, ylim = c(0, 50)) %>%
-  ggsave(filename = paste0(outD, "/pca/eigen_vals.png"), plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/eigen_vals.png"), plot = ., units = "in", width = 10, height = 8)
 
 # Control variable colors using their contributions
 fviz_pca_var(pca1, col.var = "cos2", # "contrib"
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE) %>%
-  ggsave(filename = paste0(outD, "/pca/cos2.png"), plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/cos2.png"), plot = ., units = "in", width = 10, height = 8)
 
 # Contributions of variables to PC1
 fviz_contrib(pca1, choice = "var", axes = 1, top = 20) %>%
-  ggsave(filename = "../_processed/pca_climate_coords_altitude/contribution_axis1.png", plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/contribution_axis1.png"), plot = ., units = "in", width = 10, height = 8)
 # Contributions of variables to PC2
 fviz_contrib(pca1, choice = "var", axes = 2, top = 20) %>%
-  ggsave(filename = paste0(outD, "/pca/contribution_axis2.png"), plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/contribution_axis2.png"), plot = ., units = "in", width = 10, height = 8)
 
 
 # Biplot of individuals and variables
@@ -160,21 +160,22 @@ fviz_contrib(pca1, choice = "var", axes = 2, top = 20) %>%
 
 fviz_pca_biplot(pca1,
                 label = "var",
-                habillage = tbls$speies[intersect(rownames(df), tbls$id)],
+                habillage =d4$species, # tbls$speies[intersect(rownames(df), tbls$id)],
                 addEllipses = TRUE,
                 ellipse.level = 0.95) %>%
-  ggsave(filename = paste0(outD, "/pca/biplot_species.png"), plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/biplot_species.png"), 
+         plot = ., units = "in", width = 10, height = 8)
 
 fviz_pca_biplot(pca1,
                 label = "var",
                 habillage = tbls$type[intersect(rownames(df), tbls$id)],
                 addEllipses = TRUE,
                 ellipse.level = 0.95) %>%
-  ggsave(filename = paste0(outD, "/pca/biplot_type.png"), plot = ., units = "in", width = 10, height = 8)
+  ggsave(filename = paste0(outD, "/biplot_type.png"), plot = ., units = "in", width = 10, height = 8)
 
 fviz_pca_ind(pca1,
              label = "none", # hide individual labels
-             habillage = tbls$taxon_final[intersect(rownames(df), tbls$id)], # color by groups
+             habillage =d4$species,  # tbls$taxon_final[intersect(rownames(df), tbls$id)], # color by groups
              palette = "Paired",
              addEllipses = TRUE # Concentration ellipses
 ) %>%
@@ -205,7 +206,7 @@ g <- cls %>% filter(Cluster == 3) %>% ggplot(aes(x = reorder(Variable, v.test, F
         axis.title = element_text(size = 18, face = "bold"),
         legend.title = element_text(size = 15, face = "bold"),
         legend.text =  element_text(size = 15))
-ggsave(filename = paste0(outD, "/pca/interpretation_cluster3.png"), plot = g, units = "in", width = 8, height = 10)
+ggsave(filename = paste0(outD, "/interpretation_cluster3.png"), plot = g, units = "in", width = 8, height = 10)
 
 # Dendrogram
 fviz_dend(clust_pca, show_labels = FALSE)
@@ -214,7 +215,7 @@ g <- fviz_cluster(clust_pca, geom = "point", main = "Factor map") +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
   theme_minimal()
-ggsave(filename = paste0(outD, "/pca/clustering.png"), plot = g, units = "in", width = 10, height = 8)
+ggsave(filename = paste0(outD, "/clustering.png"), plot = g, units = "in", width = 10, height = 8)
 
 cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust))
 cross_tab <- as.data.frame(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)/rowSums(table(tbls$taxon_final[intersect(rownames(df), tbls$id)], clust_pca$data.clust$clust)))
