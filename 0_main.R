@@ -20,8 +20,8 @@ tmap_mode("view")
 
 
 # read in the 2.5 arc sec data for solar radiation and wind speed 
-bioNames <- read_csv("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
-bioVars <- readRDS("~/Documents/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
+ <- read_csv("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
+bioVars <- readRDS("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
 names(bioVars) <- bioNames$`Current title`
 names(bioVars) <- bioNames$full_title
 # sub set for the layer not present at higher resolution 
@@ -78,7 +78,7 @@ for(i in 1:nrow(sp1)){
 }
 
 ### view the outputs 
-wc <- terra::rast("downloads/TRUE/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
+wc <- terra::rast("downloads/climate/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
 plot(wc[[1]])
 elev <- terra::rast("downloads/TRUE/ARG_elv_msk.tif") |>
   terra::crop(terra::ext(wc))
@@ -139,50 +139,84 @@ write_csv(exVals,file = "outputs/ecogeographicDescription.csv")
 
 
 # generata a map ----------------------------------------------------------
-countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america") |> sf::st_as_sf()
+# countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america") |> sf::st_as_sf()
+# 
+# ## export data for map 
+# sf::st_write(obj = sp1, "outputs/dataForMap/pointObject.gpkg")
+# sf::st_write(obj = countries, "outputs/dataForMap/countries.gpkg")
+# 
+# sp1 <- sp1 |>
+#   dplyr::mutate(color = case_when(
+#     species == "Lvir" ~ "#4daf4a",
+#     species == "Lser" ~ "#377eb8",
+#     species == "Lser, Lvir" ~ "#e41a1c",
+#       ),
+#     popup = paste0("<strong>", as.character(species),"</strong>", # needs to be text
+#                    "<br/><strong>Record ID :</strong> ", Id,
+#                    "<br/><strong>altitude :</strong> ", altitude,
+#                   "<br/><strong> Location Description: </strong>", location)
+#       )
+# 
+# leaflet()|>
+#   addProviderTiles(provider = providers$OpenStreetMap,
+#                    group = "OSM") |>
+#   addProviderTiles(provider = providers$Esri.WorldImagery,
+#                    group = "Imagery")|>
+#   addLayersControl(
+#     position = "topleft",
+#     baseGroups = c("OSM", "Imagery")
+#   )|>
+#   addCircleMarkers(
+#     data = sp1,
+#     group = "records",
+#     color = ~color,
+#     fillOpacity = 0.8,
+#     popup = ~popup
+#   ) |>
+#   # single legend for the GBIF features
+#   addLegend(
+#     position = "topright",
+#     colors = c("#4daf4a", "#377eb8","#e41a1c"),
+#     labels = c("Lvir","Lser","Lser, Lvir"),
+#     title = "Species",
+#     opacity = 1,
+#     group = "records"
+#   )
 
-## export data for map 
-sf::st_write(obj = sp1, "outputs/dataForMap/pointObject.gpkg")
-sf::st_write(obj = countries, "outputs/dataForMap/countries.gpkg")
 
-sp1 <- sp1 |>
-  dplyr::mutate(color = case_when(
-    species == "Lvir" ~ "#4daf4a",
-    species == "Lser" ~ "#377eb8",
-    species == "Lser, Lvir" ~ "#e41a1c",
-      ),
-    popup = paste0("<strong>", as.character(species),"</strong>", # needs to be text
-                   "<br/><strong>Record ID :</strong> ", Id,
-                   "<br/><strong>altitude :</strong> ", altitude,
-                  "<br/><strong> Location Description: </strong>", location)
-      )
 
-leaflet()|>
-  addProviderTiles(provider = providers$OpenStreetMap,
-                   group = "OSM") |>
-  addProviderTiles(provider = providers$Esri.WorldImagery,
-                   group = "Imagery")|>
-  addLayersControl(
-    position = "topleft",
-    baseGroups = c("OSM", "Imagery")
-  )|>
-  addCircleMarkers(
-    data = sp1,
-    group = "records",
-    color = ~color,
-    fillOpacity = 0.8,
-    popup = ~popup
-  ) |>
-  # single legend for the GBIF features
-  addLegend(
-    position = "topright",
-    colors = c("#4daf4a", "#377eb8","#e41a1c"),
-    labels = c("Lvir","Lser","Lser, Lvir"),
-    title = "Species",
-    opacity = 1,
-    group = "records"
-  )
-
+# read in processed data  -------------------------------------------------
+data1 <- read_csv("outputs/ecogeographicDescription.csv")
+# 
+# exVals2 <- data1 |>
+#   dplyr::select( 
+#     "Id",
+#     "species",
+#     "location",
+#     "latitude",
+#     "longitude",
+#     "Annual mean temperature (\u00B0C)" = "bio_01",                         
+#     "Mean diurnal temperature range (\u00B0C)" = "bio_02", 
+#     "Isothermality" = "bio_03",
+#     "Temperature seasonality (standard deviation) (\u00B0C)" = "bio_04"   ,
+#     "Maximum temperature of warmest month (\u00B0C)" = "bio_05",
+#     "Minimum temperature of coldest month (\u00B0C)" = "bio_06",
+#     "Temperature annual range (\u00B0C)" = "bio_07",          
+#     "Mean temperature of wettest quarter (\u00B0C)" = "bio_08",
+#     "Mean temperature of driest quarter (\u00B0C)"  = "bio_09",
+#     "Mean temperature of warmest quarter (\u00B0C)" =  "bio_10",
+#     "Mean temperature of coldest quarter (\u00B0C)" = "bio_11",
+#     "Annual precipitation (mm)" = "bio_12",
+#     "Precipitation of wettest month (mm)"= "bio_13",
+#     "Precipitation of driest month (mm)" = "bio_14",
+#     "Precipitation seasonality (coefficient of variation) (%)" = "bio_15",
+#     "Precipitation of wettest quarter (mm)" = "bio_16",
+#     "Precipitation of driest quarter (mm)"  ="bio_17",
+#     "Precipitation of warmest quarter (mm)" = "bio_18",
+#     "Precipitation of coldest quarter (mm)" = "bio_19",
+#     "elevation",
+#     "slope",
+#     "aspect" )
 
 ### generate jitters --------------------------------------------------------
 tbls <- d4[,c(2,7:31)]
@@ -208,7 +242,7 @@ for(i in seq_along(varList)){
 
 # generate boxplots -------------------------------------------------------
 #remove features with only one sample
-tbls <- exVals
+tbls <- data1
 
 
 index <- 15
@@ -222,42 +256,52 @@ data <- gather(tbls, key = "Variable", value = "Value", -species )|>
     species == "Lser, Lvir" ~ 3
   ))
 
-createBoxPlot <- function(index, shortNames, fullNames,exportNames, data){
+index <- 12
+bioNames <- bioNames
+data <- data1
+
+createBoxPlot <- function(index, bioNames,  data){
+  # select row of interest 
+  d1 <- bioNames[index, ]
+  print(d1)
   # select variable of interest 
-  var <- shortNames[index]
-  fullName <- fullNames[index]
-  exportName <- exportNames[index]
+  var <- d1$shortName
+  fullName <- d1$full_title
+  exportName <- d1$`Current title`
   # filter the dataset
-  t3 <- data |> dplyr::filter(Variable == var)
+  t3 <- data[,c("species", var)]
+  names(t3) <- c("species", "value")
   # reassign data 
-  t3$Value <- unlist(t3$Value)
+  # t3$Value <- unlist(t3$Value)
   
   # assign a variable for the title 
   t3$tempvar <- fullName
   # labels 
   labels <-c("L. virosa", "L. serriola","L. serriola & L. virosa")
   
+  # 
   t3 |> 
     group_by(species)|>
-    dplyr::summarise(mean = median(Value))
+    dplyr::summarise(mean = median(value))
 
   
   # generate the plot 
   p1 <- ggplot(data =t3, aes(x = factor(species, levels = c( "Lvir","Lser", "Lser, Lvir" )),
-                             y = Value, 
-                             color = factor(species, levels = c( "Lvir","Lser", "Lser, Lvir" )))) +
-    geom_boxplot()+
+                             y = value, 
+                             color = factor(species, levels = c( "Lvir","Lser", "Lser, Lvir" ))))  +
+    geom_boxplot()  +
     ggplot2::coord_flip() +
     ggplot2::xlab("") +
     scale_x_discrete(label = labels)+
     ggplot2::ylab("") +
-    scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))+
-    theme_gray() + 
+    scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))  +
+    theme_gray()  + 
     theme(legend.position="none",
-          aspect.ratio=1/3)+
-    facet_grid(. ~ tempvar) +
+          aspect.ratio=1/3)  +
+    # facet_grid(. ~ tempvar) +
     theme(strip.background = element_rect(fill="#d1d9d8"),
-          strip.text = element_text(size=10, colour="black"))
+          strip.text = element_text(size=10, colour="black"))+
+    ggtitle(exportName)
   
   # export the image
   ggsave(filename = paste0("outputs/boxplots/", exportName, "_2024_refined.png"),
@@ -265,12 +309,26 @@ createBoxPlot <- function(index, shortNames, fullNames,exportNames, data){
          units = "in", width = 6, height = 2)
   
 }
+# work for the 19 bio clim variables 
+purrr::map(.x = 1:19, .f = createBoxPlot,
+           bioNames =  bioNames,
+           data = data1)
 
-lapply(X = 1:22, FUN = createBoxPlot,
-       shortNames = shortNames, 
-       fullNames = fullNames,
-       exportNames = exportNames,
-       data =   data)
+# construct a new dataframe for the elevation, slope, aspect features 
+df2 <- tibble(
+  "bionumber" = rep(x = NA, 3),
+  "nmaeInRDS" = rep(x = NA, 3),
+  "shortName" = c("elevation","slope","aspect"),    
+  "Current title"  = c("elevation","slope","aspect"),
+  "metric"  = rep(x = NA, 3),      
+  "full_title" = c("elevation","slope","aspect")
+)
+
+purrr::map(.x = 1:3, .f = createBoxPlot,
+           bioNames =  df2,
+           data = data1)
+
+
 
 # # change species name 
 # tbls <- tbls |>
