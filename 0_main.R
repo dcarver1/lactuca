@@ -20,13 +20,13 @@ tmap_mode("view")
 
 
 # read in the 2.5 arc sec data for solar radiation and wind speed 
- <- read_csv("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
-bioVars <- readRDS("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
-names(bioVars) <- bioNames$`Current title`
-names(bioVars) <- bioNames$full_title
-# sub set for the layer not present at higher resolution 
-bioVarsTrim <- bioVars[[20:22]]
-rm(bioVars)
+bioNames <- read_csv("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
+# bioVars <- readRDS("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
+# names(bioVars) <- bioNames$`Current title`
+# names(bioVars) <- bioNames$full_title
+# # sub set for the layer not present at higher resolution 
+# bioVarsTrim <- bioVars[[20:22]]
+# rm(bioVars)
 
 # 2024 data generation ----------------------------------------------------
 # original Data
@@ -62,133 +62,48 @@ sp2 <- sp1 |>
 
 # set the path 
 ## does some automatic file detection testing with is nice 
-geodata_path("downloads")
-### grab elevation data outside of the loop as it is by country 
-geodata::elevation_30s(country = "AR")
-
-### try downloading tiles. 
-for(i in 1:nrow(sp1)){
-  val <- sp1[i,]  
-  # grab lat lon
-  lat <- val$latitude[1] |> unlist()
-  lon <- val$longitude[1] |> unlist()
-  # grab bioclim
-  geodata::worldclim_tile(var = "bio",res = "0.5", lon = lon, lat = lat )
-
-}
+# geodata_path("downloads")
+# ### grab elevation data outside of the loop as it is by country 
+# geodata::elevation_30s(country = "AR")
+# 
+# ### try downloading tiles. 
+# val <- sp1[1,]  
+# # grab lat lon
+# lat <- val$latitude[1] |> unlist()
+# lon <- val$longitude[1] |> unlist()
+# # grab bioclim
+# geodata::worldclim_tile(var = "bio",res = "0.5", lon = lon, lat = lat )
+# 
 
 ### view the outputs 
-wc <- terra::rast("downloads/climate/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
-plot(wc[[1]])
-elev <- terra::rast("downloads/TRUE/ARG_elv_msk.tif") |>
-  terra::crop(terra::ext(wc))
+# wc <- terra::rast("downloads/climate/wc2.1_tiles/tile_52_wc2.1_30s_bio.tif")
+# issues with the tiled data from the web download, value ranges not mathcing with expected variables 
+
+wc30 <- list.files(path = "downloads/wcCrop30",
+                   full.names = TRUE) |>
+  terra::rast()
+
+plot(wc30[[19]])
+elev <- terra::rast("downloads/elevation/ARG_elv_msk.tif") |>
+  terra::crop(terra::ext(wc30))
 plot(elev)
 # slope 
 slope <- terra::terrain(elev, v= "slope", unit = "degrees" , neighbors = 8) 
 # aspect
 aspect <- terra::terrain(elev, v= "aspect", unit = "degrees" , neighbors = 8)
 
-# mask the plot area 
-wc2 <- wc |>
-  terra::crop(y = slope)
-
-allFeatures <- c(wc2,elev, slope, aspect)
+# combine features
+allFeatures <- c(wc30 ,elev, slope, aspect)
 
 # Extract values to points  -----------------------------------------------
 exVal1 <- terra::extract(x = allFeatures, y = sp2)
-names(exVal1) <- c("Id",bioNames$shortName[1:19], "elevation", "slope", "aspect")
+# names(exVal1) <- c("Id",bioNames$shortName[1:19], "elevation", "slope", "aspect")
 # exVal2 <- terra::extract(x = bioVarsTrim, y = sp2)
 # join and re order
-exVals <- dplyr::left_join(as.data.frame(sp1), exVal1, by = "Id")
+exVals <- dplyr::left_join(as.data.frame(sp1), exVal1, by = c("Id" = "ID"))
 
 # subset for only require data for box plots 
-exVals2 <- exVals |>
-  dplyr::select( 
-    "Id",
-    "species",
-    "location",
-    "latitude",
-    "longitude",
-    "Annual mean temperature (\u00B0C)" = "bio_01",                         
-    "Mean diurnal temperature range (\u00B0C)" = "bio_02", 
-    "Isothermality" = "bio_03",
-    "Temperature seasonality (standard deviation) (\u00B0C)" = "bio_04"   ,
-    "Maximum temperature of warmest month (\u00B0C)" = "bio_05",
-    "Minimum temperature of coldest month (\u00B0C)" = "bio_06",
-    "Temperature annual range (\u00B0C)" = "bio_07",          
-    "Mean temperature of wettest quarter (\u00B0C)" = "bio_08",
-    "Mean temperature of driest quarter (\u00B0C)"  = "bio_09",
-    "Mean temperature of warmest quarter (\u00B0C)" =  "bio_10",
-    "Mean temperature of coldest quarter (\u00B0C)" = "bio_11",
-    "Annual precipitation (mm)" = "bio_12",
-    "Precipitation of wettest month (mm)"= "bio_13",
-    "Precipitation of driest month (mm)" = "bio_14",
-    "Precipitation seasonality (coefficient of variation) (%)" = "bio_15",
-    "Precipitation of wettest quarter (mm)" = "bio_16",
-    "Precipitation of driest quarter (mm)"  ="bio_17",
-    "Precipitation of warmest quarter (mm)" = "bio_18",
-    "Precipitation of coldest quarter (mm)" = "bio_19",
-    "elevation",
-    "slope",
-    "aspect" )
-
-# the  degree C symbology causes some issues.... 
-write_csv(exVals,file = "outputs/ecogeographicDescription.csv")
-
-
-
-
-# generata a map ----------------------------------------------------------
-# countries <- rnaturalearth::ne_countries(scale = 110, type = "countries",continent = "south america") |> sf::st_as_sf()
-# 
-# ## export data for map 
-# sf::st_write(obj = sp1, "outputs/dataForMap/pointObject.gpkg")
-# sf::st_write(obj = countries, "outputs/dataForMap/countries.gpkg")
-# 
-# sp1 <- sp1 |>
-#   dplyr::mutate(color = case_when(
-#     species == "Lvir" ~ "#4daf4a",
-#     species == "Lser" ~ "#377eb8",
-#     species == "Lser, Lvir" ~ "#e41a1c",
-#       ),
-#     popup = paste0("<strong>", as.character(species),"</strong>", # needs to be text
-#                    "<br/><strong>Record ID :</strong> ", Id,
-#                    "<br/><strong>altitude :</strong> ", altitude,
-#                   "<br/><strong> Location Description: </strong>", location)
-#       )
-# 
-# leaflet()|>
-#   addProviderTiles(provider = providers$OpenStreetMap,
-#                    group = "OSM") |>
-#   addProviderTiles(provider = providers$Esri.WorldImagery,
-#                    group = "Imagery")|>
-#   addLayersControl(
-#     position = "topleft",
-#     baseGroups = c("OSM", "Imagery")
-#   )|>
-#   addCircleMarkers(
-#     data = sp1,
-#     group = "records",
-#     color = ~color,
-#     fillOpacity = 0.8,
-#     popup = ~popup
-#   ) |>
-#   # single legend for the GBIF features
-#   addLegend(
-#     position = "topright",
-#     colors = c("#4daf4a", "#377eb8","#e41a1c"),
-#     labels = c("Lvir","Lser","Lser, Lvir"),
-#     title = "Species",
-#     opacity = 1,
-#     group = "records"
-#   )
-
-
-
-# read in processed data  -------------------------------------------------
-data1 <- read_csv("outputs/ecogeographicDescription.csv")
-# 
-# exVals2 <- data1 |>
+# exVals2 <- exVals |>
 #   dplyr::select( 
 #     "Id",
 #     "species",
@@ -218,47 +133,49 @@ data1 <- read_csv("outputs/ecogeographicDescription.csv")
 #     "slope",
 #     "aspect" )
 
-### generate jitters --------------------------------------------------------
-tbls <- d4[,c(2,7:31)]
-tbls <- tbls[!is.nan(tbls$`Annual mean temperature`),]
-varList <- names(tbls)[-1]
+# the  degree C symbology causes some issues.... 
+write_csv(exVals,file = "outputs/ecogeographicDescription.csv")
 
-for(i in seq_along(varList)){
-  g <- tbls %>%
-    ggplot2::ggplot(aes(x = species, y =varList[i], color = species)) +
-    ggplot2::geom_jitter(width = 0.20)+
-    ggplot2::xlab("") +
-    ggplot2::ylab("") +
-    ggplot2::coord_flip() +
-    ggplot2::theme_bw()+
-    ggplot2::theme(axis.text.y = ggplot2::element_text(face =  "bold.italic"))
-  # save files 
-  ggsave(filename = paste0("outputs/jitters/", varList[i], "_2024.png"), 
-         plot = g, units = "in", width = 7, height = 3)
-  rm(g)
-  
-}
+
+
+
+
+# read in processed data  -------------------------------------------------
+data1 <- read_csv("outputs/ecogeographicDescription.csv")
+View(data1)
 
 
 # generate boxplots -------------------------------------------------------
 #remove features with only one sample
-tbls <- data1
+tbls <- data1 |> 
+  dplyr::select("species",
+                 "bio_01" ="wc2.1_30s_bio_1",
+                 "bio_10" = "wc2.1_30s_bio_10",
+                 "bio_11" = "wc2.1_30s_bio_11",
+                 "bio_12" ="wc2.1_30s_bio_12",
+                 "bio_13" = "wc2.1_30s_bio_13",
+                 "bio_14" = "wc2.1_30s_bio_14",
+                "bio_15" ="wc2.1_30s_bio_15" ,
+                "bio_16" =  "wc2.1_30s_bio_16",
+                 "bio_17" = "wc2.1_30s_bio_17",
+                 "bio_18" ="wc2.1_30s_bio_18",
+                 "bio_19" ="wc2.1_30s_bio_19",
+                "bio_02"= "wc2.1_30s_bio_2",
+               "bio_03" =  "wc2.1_30s_bio_3", 
+                 "bio_04" = "wc2.1_30s_bio_4",
+                 "bio_05" = "wc2.1_30s_bio_5",
+                 "bio_06" = "wc2.1_30s_bio_6",
+                 "bio_07" = "wc2.1_30s_bio_7",
+                 "bio_08" = "wc2.1_30s_bio_8", 
+                  "bio_09" ="wc2.1_30s_bio_9",
+                  "elevation" = "ARG_elv_msk" , 
+                "slope" ,
+                "aspect")
 
 
-index <- 15
-shortNames <- names(exVals[8:29])
-fullNames <- names(exVals2)[6:27]
-exportNames <- c(bioNames$`Current title`[1:19], "elevation","slope","aspect")
-data <- gather(tbls, key = "Variable", value = "Value", -species )|>
-  dplyr::mutate(factor = case_when(
-    species == "Lvir" ~ 1,
-    species == "Lser" ~ 2, 
-    species == "Lser, Lvir" ~ 3
-  ))
-
-index <- 12
+index <- 1
 bioNames <- bioNames
-data <- data1
+data <- tbls
 
 createBoxPlot <- function(index, bioNames,  data){
   # select row of interest 
@@ -396,6 +313,27 @@ ggplot(data = t3, aes(x = species, y = Value, color = species)) +
   rm(g)
 }
 
+
+### generate jitters --------------------------------------------------------
+tbls <- d4[,c(2,7:31)]
+tbls <- tbls[!is.nan(tbls$`Annual mean temperature`),]
+varList <- names(tbls)[-1]
+
+for(i in seq_along(varList)){
+  g <- tbls %>%
+    ggplot2::ggplot(aes(x = species, y =varList[i], color = species)) +
+    ggplot2::geom_jitter(width = 0.20)+
+    ggplot2::xlab("") +
+    ggplot2::ylab("") +
+    ggplot2::coord_flip() +
+    ggplot2::theme_bw()+
+    ggplot2::theme(axis.text.y = ggplot2::element_text(face =  "bold.italic"))
+  # save files 
+  ggsave(filename = paste0("outputs/jitters/", varList[i], "_2024.png"), 
+         plot = g, units = "in", width = 7, height = 3)
+  rm(g)
+  
+}
 
 # pca process  ------------------------------------------------------------
 
