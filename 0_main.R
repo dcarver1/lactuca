@@ -21,6 +21,16 @@ tmap_mode("view")
 
 # read in the 2.5 arc sec data for solar radiation and wind speed 
 bioNames <- read_csv("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
+write_
+bioNames <- bioNames |>
+  mutate(expression = case_when(
+    metric == "\xbaC" ~  "* degree *",
+    
+  ))
+
+
+expression("Annual mean temperature (" * degree * "C)")
+
 # bioVars <- readRDS("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
 # names(bioVars) <- bioNames$`Current title`
 # names(bioVars) <- bioNames$full_title
@@ -192,7 +202,8 @@ createBoxPlot <- function(index, bioNames,  data){
   # t3$Value <- unlist(t3$Value)
   
   # assign a variable for the title 
-  t3$tempvar <- fullName
+  t3$fullName <- factor(fullName, levels = fullName)
+  t3$exportName <- exportName
   # labels 
   labels <-c("L. virosa", "L. serriola","L. serriola & L. virosa")
   
@@ -200,7 +211,6 @@ createBoxPlot <- function(index, bioNames,  data){
   t3 |> 
     group_by(species)|>
     dplyr::summarise(mean = median(value))
-
   
   # generate the plot 
   p1 <- ggplot(data =t3, aes(x = factor(species, levels = c( "Lvir","Lser", "Lser, Lvir" )),
@@ -212,14 +222,36 @@ createBoxPlot <- function(index, bioNames,  data){
     scale_x_discrete(label = labels)+
     ggplot2::ylab("") +
     scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))  +
-    theme_gray()  + 
+    theme_light()+
+    theme(plot.title = element_text(face = "bold"))+
     theme(legend.position="none",
-          aspect.ratio=1/3)  +
-    # facet_grid(. ~ tempvar) +
-    theme(strip.background = element_rect(fill="#d1d9d8"),
-          strip.text = element_text(size=10, colour="black"))+
-    ggtitle(exportName)
-  
+          aspect.ratio=1/3,
+          axis.text.y = element_text(size = 10, face = "bold.italic"), 
+          panel.grid.major.x = element_line(color = "grey85"), # Light grey vertical lines
+          axis.text.x = element_text(size = 10),
+          strip.background = element_rect(
+            fill = "grey", # Set the background color to blue
+            color = "black",   # Optional: Add a black border around the strip
+            size = 0.8         # Optional: Thickness of the border
+          ),
+          strip.text = element_text(
+            color = "black",   # Set the text color to white for contrast
+            face = "bold",     # Make the text bold
+            size = 12          # Increase font size if desired
+          )
+        ) +
+    facet_wrap(~ fullName)
+    
+
+    
+    
+    # # facet_grid(. ~ tempvar) +
+    # theme(# strip.background = element_rect(fill="#FFFFFF"),
+    #       plot.background = element_rect(fill = "white", color = NA), # Entire plot background
+    #       #strip.text = element_text(size=10, colour="black")
+    #       )+
+    # ggtitle(exportName)
+    # 
   # export the image
   ggsave(filename = paste0("outputs/boxplots/", exportName, "_2024_refined.png"),
          plot = p1, 
@@ -229,7 +261,7 @@ createBoxPlot <- function(index, bioNames,  data){
 # work for the 19 bio clim variables 
 purrr::map(.x = 1:19, .f = createBoxPlot,
            bioNames =  bioNames,
-           data = data1)
+           data = tbls)
 
 # construct a new dataframe for the elevation, slope, aspect features 
 df2 <- tibble(
@@ -243,7 +275,7 @@ df2 <- tibble(
 
 purrr::map(.x = 1:3, .f = createBoxPlot,
            bioNames =  df2,
-           data = data1)
+           data = tbls)
 
 
 
@@ -301,8 +333,8 @@ ggplot(data = t3, aes(x = species, y = Value, color = species)) +
   ggplot2::ylab("") +
   scale_color_manual(values = c( "#619CFF", "#00BA38","#F8766D" ))+
   theme_gray() + 
-  theme(legend.position="none",
-        aspect.ratio=1/3)+
+  # theme(legend.position="none",
+  #       aspect.ratio=1/3)+
   facet_grid(. ~ tempvar) +
   theme(strip.background = element_rect(fill="#d1d9d8"),
         strip.text = element_text(size=15, colour="black"))
