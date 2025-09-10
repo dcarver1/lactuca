@@ -21,16 +21,6 @@ tmap_mode("view")
 
 # read in the 2.5 arc sec data for solar radiation and wind speed 
 bioNames <- read_csv("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/variableNames.csv")
-write_
-bioNames <- bioNames |>
-  mutate(expression = case_when(
-    metric == "\xbaC" ~  "* degree *",
-    
-  ))
-
-
-expression("Annual mean temperature (" * degree * "C)")
-
 # bioVars <- readRDS("~/trueNAS/work/cwr_wildgrapes/data/geospatial_datasets/bioclim_layers/bioclim_2.5arcsec_terra.RDS")
 # names(bioVars) <- bioNames$`Current title`
 # names(bioVars) <- bioNames$full_title
@@ -193,7 +183,7 @@ createBoxPlot <- function(index, bioNames,  data){
   print(d1)
   # select variable of interest 
   var <- d1$shortName
-  fullName <- d1$full_title
+  fullName <- d1$expression
   exportName <- d1$`Current title`
   # filter the dataset
   t3 <- data[,c("species", var)]
@@ -202,15 +192,10 @@ createBoxPlot <- function(index, bioNames,  data){
   # t3$Value <- unlist(t3$Value)
   
   # assign a variable for the title 
-  t3$fullName <- factor(fullName, levels = fullName)
+  t3$fullName <- fullName
   t3$exportName <- exportName
   # labels 
   labels <-c("L. virosa", "L. serriola","L. serriola & L. virosa")
-  
-  # 
-  t3 |> 
-    group_by(species)|>
-    dplyr::summarise(mean = median(value))
   
   # generate the plot 
   p1 <- ggplot(data =t3, aes(x = factor(species, levels = c( "Lvir","Lser", "Lser, Lvir" )),
@@ -240,7 +225,7 @@ createBoxPlot <- function(index, bioNames,  data){
             size = 12          # Increase font size if desired
           )
         ) +
-    facet_wrap(~ fullName)
+    facet_wrap(~ exportName)
     
 
     
