@@ -69,12 +69,12 @@ genBoxPlot <- function(param, title, data){
   # 3. (Optional) Update the axis titles in the layout
   fig_horizontal <- fig_horizontal %>% layout(
     # paper_bgcolor = '#1f2937', # Outer background color
-    plot_bgcolor = '#d0d3d3',  # Inner plotting area color
+    plot_bgcolor = '#F5F5F5',  # Inner plotting area color
     showlegend = FALSE,
     title = paste0("<b>", title, "</b>"),
     xaxis = list(title = ""),
     yaxis = list(title = "",
-                 tickfont = list(family ='Georgia, italic', size = 12)
+                 tickfont = list(family ='Georgia, italic', size = 18)
                  )            # Updated y-axis title
   )
   fig_horizontal
@@ -90,4 +90,5 @@ plots <- purrr::map2(.x = names(d3)[3:28],
                      .y = titles , 
                      .f = genBoxPlot,
                      data = d3)
+plots
 
